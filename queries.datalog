@@ -1,0 +1,33 @@
+?- father(yuki, masaki), father(masaki, toichi).
+
+?- father(X, masaki), father(masaki, toichi).
+?- father(yuki, X), father(X, toichi).
+?- father(yuki, masaki), father(masaki, X).
+
+?- father(X, Y), father(Y, toichi).
+?- father(yuki, X), father(X, Y).
+
+?- father(X, Y), father(Y, Z).
+
+#
+
+?- father(yuki, masaki), father(jonun, joniru).
+
+?- father(X, masaki), father(jonun, joniru).
+?- father(yuki, X), father(jonun, joniru).
+?- father(yuki, masaki), father(X, joniru).
+?- father(yuki, masaki), father(jonun, X).
+
+?- father(X, Y), father(jonun, joniru).
+?- father(X, masaki), father(Y, joniru).
+?- father(X, masaki), father(jonun, Y).
+?- father(yuki, X), father(Y, joniru).
+?- father(yuki, X), father(jonun, Y).
+?- father(yuki, masaki), father(X, Y).
+
+?- father(X, Y), father(Z, joniru).
+?- father(X, Y), father(jonun, Z).
+?- father(X, masaki), father(Y, Z).
+?- father(yuki, X), father(Y, Z).
+
+?- father(X, Y), father(Z, T).
