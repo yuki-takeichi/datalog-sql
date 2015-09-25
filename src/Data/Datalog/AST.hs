@@ -24,6 +24,9 @@ module Data.Datalog.AST (
 , DatalogHead(..)
 , DatalogBody(..)
 , genSQLAST
+, genSQLString
+, IndentedString(..)
+, indent
 , rule1
 , rule2
 , joins
@@ -75,6 +78,18 @@ data Predicate = Equal Expr Expr deriving (Show, Eq)
 data Expr = ColumnRef String String
           | SqlStr String deriving (Show, Eq)
 
+data IndentedString = Indent Int [IndentedString]
+                    | Block [String] deriving (Show, Eq)
+
+indent :: IndentedString -> String
+indent is = unlines $ padding 0 is
+  where
+    padding :: Int -> IndentedString -> [String]
+    padding level (Block strs) = shift level strs
+    padding level (Indent innerLevel bs) = concatMap (padding $ level+innerLevel) bs
+
+    shift :: Int -> [String] -> [String]
+    shift level = map ((take level $ cycle " ") ++)
 
 
 genSQLAST :: Map String DatalogRule
@@ -232,4 +247,32 @@ something (x:[]) = [] -- 変数への参照がひとつしかない場合は空
 something (x:xs) = reverse $ somethingHoge x xs []
   where somethingHoge _ [] piyo = piyo
         somethingHoge y (y':ys) piyo = somethingHoge y ys $ (y, y') : piyo
+
+genSQLString :: SelectStmt -> IndentedString
+genSQLString stmt = genSQLStringIndented stmt
+
+genSQLStringIndented :: SelectStmt -> IndentedString
+genSQLStringIndented SelectStmt{withClauses=_withClause,selectExprs=_selectExprs,fromTables=_fromTables,whereClause=_whereClause} = undefined
+
+tableRefString :: TableRef -> IndentedString
+tableRefString (Table tableName) = Block [tableName]
+tableRefString (SubSelect stmt alias) = Indent 0 [
+                                                   Block ["("],
+                                                   Indent 2 [genSQLStringIndented stmt],
+                                                   Block [")" ++ " as " ++ alias]
+                                                 ]
+
+whereClauseString :: [Predicate] -> IndentedString
+whereClauseString preds = undefined
+
+predicateString :: Predicate -> String
+predicateString (Equal lexpr rexpr) = exprString lexpr ++ " = " ++ exprString rexpr
+
+selectExprString :: SelectExpr -> String
+selectExprString (SelectExpr expr (Just asName)) = exprString expr ++ " as " ++ asName
+selectExprString (SelectExpr expr (Nothing))     = exprString expr
+
+exprString :: Expr -> String
+exprString (ColumnRef table column) = table ++ "." ++ column
+exprString (SqlStr str) = "\"" ++ str ++ "\""
 

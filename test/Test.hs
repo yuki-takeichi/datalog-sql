@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 import Test.Framework (defaultMain, testGroup, Test)
 import Test.Framework.Providers.HUnit (testCase)
 --import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -8,6 +10,7 @@ import Test.HUnit (Assertion, assertBool, (@=?))
 import Data.Map
 import Data.Datalog.AST
 
+import Str
 
 main :: IO ()
 main = defaultMain tests
@@ -17,11 +20,12 @@ pass = assertBool "pass" True
 
 tests :: [Test]
 tests = [
-        testGroup "query" [
-                testCase "always success" pass,
-                testCase "genSQL" test_genSQLAST1
-            ]
-    ]
+          testGroup "query" [
+            testCase "always success" pass,
+            testCase "genSQL" test_genSQLAST1
+          ],
+          testCase "indent" test_indent
+        ]
 
 -- ?(him: X) :- ancestor(me: yuki, him: X), grandparent(me: masaki, him: X).
 {- select ancestor.him as him
@@ -55,3 +59,46 @@ test_genSQLAST1 = sql @=? genSQLAST empty [(queryHead, queryBody)]
                             Equal (ColumnRef "ancestor" "me")    (SqlStr "yuki"),
                             Equal (ColumnRef "grandparent" "me") (SqlStr "masaki") ]
           }
+
+test_indent :: Assertion
+test_indent = expected @=? indent is
+  where
+    is  = Indent 0 [
+            Block ["select hoge.foo"],
+            Indent 5 [
+              Block [", bar.piyo"]
+            ],
+            Block ["from ("],
+            Indent 2 [
+              Block ["select foo"],
+              Indent 5 [
+                Block [", hoge"]
+              ],
+              Block [
+                "from hogehoge",
+                "where hogehoge.huga > 10"
+              ]
+            ],
+            Block [") as hoge"],
+            Indent 3 [
+              Block [", bar"]
+            ],
+            Block ["where hoge.hage = bar.barbar"],
+            Indent 2 [
+              Block ["and hoge.hoge = hoge.bar"]
+            ],
+            Block [";"]
+          ]
+    expected = [str|select hoge.foo
+     , bar.piyo
+from (
+  select foo
+       , hoge
+  from hogehoge
+  where hogehoge.huga > 10
+) as hoge
+   , bar
+where hoge.hage = bar.barbar
+  and hoge.hoge = hoge.bar
+;
+|]

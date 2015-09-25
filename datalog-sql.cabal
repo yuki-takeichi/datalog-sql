@@ -48,4 +48,5 @@ test-suite unittest
                      , test-framework
                      , test-framework-hunit
                      , test-framework-quickcheck2
+                     , template-haskell
   default-language:    Haskell2010
