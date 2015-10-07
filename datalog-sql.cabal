@@ -8,7 +8,7 @@ version:             0.1.0.0
 license:             MIT
 license-file:        LICENSE
 author:              Yuki Takeichi
-maintainer:          yuki.takeichi@gmail.com
+maintainer:          yuki.takeichi at gmail.com
 -- copyright:           
 category:            Data
 build-type:          Simple
@@ -18,6 +18,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Data.Datalog
                      , Data.Datalog.AST
+                     , Data.Datalog.Parser
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
@@ -25,6 +26,7 @@ library
                      , text >= 1.1
                      , parsec >= 3.1
                      , semigroups >= 0.16 && <0.17
+                     , mtl >= 2.2.1
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -43,6 +45,8 @@ test-suite unittest
                      , containers >= 0.5.5
                      , datalog-sql
                      , Cabal >= 1.9.2
+                     , parsec >= 3.1
+                     , mtl >= 2.2.1
                      , QuickCheck
                      , HUnit
                      , test-framework
