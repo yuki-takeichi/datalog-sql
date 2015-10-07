@@ -19,7 +19,7 @@ parse :: String -> String -> Either ParseError DatalogStmt
 parse sourceName code = S.evalState (runPT stmt () sourceName code) M.empty
 
 stmt :: DatalogParser DatalogStmt
-stmt = fact <|> rule <|> query
+stmt = query <|> rule <|> fact
 
 incrCounter :: String -> DatalogParser Integer
 incrCounter key = do s <- S.get
@@ -42,12 +42,12 @@ resetCounter = do S.put M.empty
 fact :: DatalogParser DatalogStmt
 fact = do r <- relation
           void $ char '.'
-          return $ DatalogStmtFact $ DatalogFact $ DatalogBody r
+          return $ DatalogFact $ DatalogBody r
 
 rule :: DatalogParser DatalogStmt
 rule = do rs <- ruleOne `sepBy` char ';'
           void $ char '.'
-          return $ DatalogStmtRule $ DatalogRule rs
+          return $ DatalogRule rs
 
 ruleOne :: DatalogParser (DatalogHead, DatalogBody)
 ruleOne = do h <- headP
@@ -65,7 +65,7 @@ query = do whitespace
            whitespace
            void $ char '.'
            whitespace
-           return $ DatalogStmtQuery $ DatalogQuery h b -- TODO ?であることの制約
+           return $ DatalogQuery h b -- TODO ?であることの制約
 
 queryHead :: DatalogParser DatalogHead
 queryHead = do qrel <- queryHeadRelation

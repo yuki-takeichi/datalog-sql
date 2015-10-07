@@ -4,14 +4,13 @@ import Test.Framework (defaultMain, testGroup, Test)
 import Test.Framework.Providers.HUnit (testCase)
 --import Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Test.HUnit (Assertion, assertBool, (@=?), assertFailure)
+import Test.HUnit (Assertion, assertBool, (@=?))
 --import Test.QuickCheck
 
 import ParserTest
 
 import Data.Map as M
 import Data.Datalog.AST
-import Data.Datalog.Parser
 
 import Str
 
@@ -52,7 +51,7 @@ tests = [
  - ;
  -}
 test_genSQLAST1 :: Assertion
-test_genSQLAST1 = sql @=? genSQLAST M.empty [(queryHead, queryBody)]
+test_genSQLAST1 = sql @=? genSQLAST M.empty (DatalogQuery queryHead queryBody)
   where
     queryHead :: DatalogHead
     queryHead = DatalogHead [ 
@@ -76,14 +75,14 @@ test_genSQLAST1 = sql @=? genSQLAST M.empty [(queryHead, queryBody)]
           }
 
 test_genSQLASTWithNoRecursiveWithClause :: Assertion
-test_genSQLASTWithNoRecursiveWithClause = sql @=? genSQLAST (M.fromList [("grandparent", ruleGrandParent)] ) [(queryHead, queryBody)]
+test_genSQLASTWithNoRecursiveWithClause = sql @=? genSQLAST (M.fromList [("grandparent", ruleGrandParent)] ) (DatalogQuery queryHead queryBody)
   where
     -- grandparent(me: X, him: Y) :- parent(me: X, him: P), parent(me: P, him: Y).
-    ruleGrandParent :: DatalogRule
-    ruleGrandParent = DatalogRule [ (head, body) ]
+    ruleGrandParent :: DatalogStmt
+    ruleGrandParent = DatalogRule [ (qhead, body) ]
       where
-        head :: DatalogHead
-        head = DatalogHead [
+        qhead :: DatalogHead
+        qhead = DatalogHead [
                  TupleAttrRef {rel=Relation{name="grandparent", rid=0}, attr="me", arg=Var "X"},
                  TupleAttrRef {rel=Relation{name="grandparent", rid=0}, attr="him", arg=Var "Y"}
                ]
