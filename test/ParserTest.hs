@@ -8,11 +8,8 @@ import Test.Framework.Providers.HUnit (testCase)
 import Test.HUnit (Assertion, (@=?), assertFailure)
 import Str
 
-import Text.Parsec
 import Data.Datalog.Parser
 import Data.Datalog.AST
-import Data.Map as M
-import Control.Monad.State as S
 
 parserTests :: Test
 parserTests = testGroup "Parse datalog source code to AST" [
@@ -24,16 +21,16 @@ parserTests = testGroup "Parse datalog source code to AST" [
                   testCase "Conjinctive & Disjunctive" test_ruleDisjunctive
                 ]
               ]
-
-testParser parser code expected = case S.evalState (runPT parser () "(test)" code) M.empty of
-                                    Left e -> assertFailure $ show e
-                                    Right actual -> expected @=? actual
+testParser :: String -> DatalogStmt -> Assertion
+testParser code expected = case parse "(test)" code of
+                             Left e -> assertFailure $ show e
+                             Right actual -> expected @=? actual
 
 test_query :: Assertion
-test_query = testParser query datalog expected
+test_query = testParser datalog expected
   where 
     datalog  = [str|?(ans:X):-grandparent(me:yuki,him:X).|]
-    expected = DatalogQuery (
+    expected = DatalogStmtQuery $ DatalogQuery (
                  DatalogHead [
                    TupleAttrRef {rel=Relation{name="?", rid=0}, attr="ans", arg=Var "X"}
                  ]
@@ -45,10 +42,10 @@ test_query = testParser query datalog expected
                )
 
 test_rule :: Assertion
-test_rule = testParser rule datalog expected
+test_rule = testParser datalog expected
   where
     datalog  = [str|grandparent(me:X,him:Y):-parent(me:X,him:P),parent(me:P,him:Y).|]
-    expected = DatalogRule [
+    expected = DatalogStmtRule $ DatalogRule [
                  (DatalogHead [
                    TupleAttrRef {rel=Relation{name="grandparent", rid=0}, attr="me", arg=Var "X"},
                    TupleAttrRef {rel=Relation{name="grandparent", rid=0}, attr="him", arg=Var "Y"}
@@ -63,10 +60,10 @@ test_rule = testParser rule datalog expected
                ]
 
 test_ruleDisjunctive :: Assertion
-test_ruleDisjunctive = testParser rule datalog expected
+test_ruleDisjunctive = testParser datalog expected
   where
     datalog  = [str|parent(me:X,him:Y):-father(me:X,him:Y);parent(me:X,him:Y):-mother(me:X,him:Y).|]
-    expected = DatalogRule [
+    expected = DatalogStmtRule $ DatalogRule [
                  (DatalogHead [
                    TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="me", arg=Var "X"},
                    TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="him", arg=Var "Y"}

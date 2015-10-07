@@ -1,20 +1,26 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Data.Datalog.Parser ( 
   parse
-, fact
-, rule
-, query
+, DatalogParser
 ) where
 
-import Text.Parsec
+import Text.Parsec hiding (parse, sourceName)
 import Control.Monad (void)
 import qualified Control.Monad.State as S
 import qualified Data.Map as M
 
 import Data.Datalog.AST
 
+type DatalogParser a = StatefulParser RelationCount a
+
 type StatefulParser s a = ParsecT String () (S.State s) a
 type RelationCount      = (M.Map String Integer)
+
+parse :: String -> String -> Either ParseError DatalogStmt
+parse sourceName code = S.evalState (runPT stmt () sourceName code) M.empty
+
+stmt :: StatefulParser RelationCount DatalogStmt
+stmt = fact <|> rule <|> query
 
 incrCounter :: String -> StatefulParser RelationCount Integer
 incrCounter key = do s <- S.get
@@ -34,15 +40,15 @@ resetCounter :: StatefulParser RelationCount ()
 resetCounter = do S.put M.empty
                   return ()
 
-fact :: StatefulParser RelationCount DatalogFact
+fact :: StatefulParser RelationCount DatalogStmt
 fact = do r <- relation
           void $ char '.'
-          return $ DatalogFact $ DatalogBody r
+          return $ DatalogStmtFact $ DatalogFact $ DatalogBody r
 
-rule :: StatefulParser RelationCount DatalogRule
+rule :: StatefulParser RelationCount DatalogStmt
 rule = do rs <- ruleOne `sepBy` char ';'
           void $ char '.'
-          return $ DatalogRule rs
+          return $ DatalogStmtRule $ DatalogRule rs
 
 ruleOne :: StatefulParser RelationCount (DatalogHead, DatalogBody)
 ruleOne = do h <- headP
@@ -50,7 +56,7 @@ ruleOne = do h <- headP
              b <- body
              return (h, b)
 
-query :: StatefulParser RelationCount DatalogQuery
+query :: StatefulParser RelationCount DatalogStmt
 query = do whitespace
            h <- queryHead
            whitespace
@@ -60,7 +66,7 @@ query = do whitespace
            whitespace
            void $ char '.'
            whitespace
-           return $ DatalogQuery h b -- TODO ?であることの制約
+           return $ DatalogStmtQuery $ DatalogQuery h b -- TODO ?であることの制約
 
 queryHead :: StatefulParser RelationCount DatalogHead
 queryHead = do qrel <- queryHeadRelation
