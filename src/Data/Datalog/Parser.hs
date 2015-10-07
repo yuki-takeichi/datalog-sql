@@ -1,26 +1,56 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Data.Datalog.Parser ( 
-  fact
+  parse
+, fact
 , rule
 , query
 ) where
 
 import Text.Parsec
-import Text.Parsec.String
 import Control.Monad (void)
+import qualified Control.Monad.State as S
+import qualified Data.Map as M
 
 import Data.Datalog.AST
 
-fact :: Parser DatalogFact
+type StatefulParser s a = ParsecT String () (S.State s) a
+type RelationCount      = (M.Map String Integer)
+
+incrCounter :: String -> StatefulParser RelationCount Integer
+incrCounter key = do s <- S.get
+                     let rId = getId key s 
+                     S.modify $ incr key
+                     return $ rId
+  where
+    incr k m = case M.lookup k m of
+                 Just i  -> M.insert k (i+1) m
+                 Nothing -> M.insert k 1 m
+    getId :: String -> M.Map String Integer -> Integer
+    getId k m = case M.lookup k m of
+                  Just v -> v
+                  Nothing -> 0
+
+resetCounter :: StatefulParser RelationCount ()
+resetCounter = do S.put M.empty
+                  return ()
+
+fact :: StatefulParser RelationCount DatalogFact
 fact = do r <- relation
           void $ char '.'
           return $ DatalogFact $ DatalogBody r
 
-rule :: Parser DatalogRule
-rule = do h <- headP
-          b <- body
-          return $ DatalogRule [(h, b)] -- TODO 選言への対応(cabalのDatalogを参考にする)
+rule :: StatefulParser RelationCount DatalogRule
+rule = do rs <- ruleOne `sepBy` char ';'
+          void $ char '.'
+          return $ DatalogRule rs
 
-query :: Parser DatalogQuery
+ruleOne :: StatefulParser RelationCount (DatalogHead, DatalogBody)
+ruleOne = do h <- headP
+             void $ string ":-"
+             b <- body
+             return (h, b)
+
+query :: StatefulParser RelationCount DatalogQuery
 query = do whitespace
            h <- queryHead
            whitespace
@@ -32,43 +62,48 @@ query = do whitespace
            whitespace
            return $ DatalogQuery h b -- TODO ?であることの制約
 
-queryHead :: Parser DatalogHead
+queryHead :: StatefulParser RelationCount DatalogHead
 queryHead = do qrel <- queryHeadRelation
                return $ DatalogHead qrel
 
-queryHeadRelation :: Parser [TupleAttrRef]
+queryHeadRelation :: StatefulParser RelationCount [TupleAttrRef]
 queryHeadRelation = do void $ char '?'
                        --refs <- bracketed $ attrRef `sepBy` (char ',')
                        refs <- bracketed $ sepByComma attrRef
                        return $ map (\(at, ag) -> TupleAttrRef {rel=Relation{name="?", rid=0}, attr=at, arg=ag}) refs
                        -- TODO fact名をTupleAttrRefが持つのって冗長な(非正規的)な感じする
-                       -- TODO ridが固定なのはやばい
+                       -- TODO ridが固定なのはやばい(が、queryがdisjinctiveじゃない現在は、
+                       -- このままでいいかも。
                        
 
-headP :: Parser DatalogHead
+headP :: StatefulParser RelationCount DatalogHead
 headP = do r <- relation
+           resetCounter
            return $ DatalogHead r
 
-body :: Parser DatalogBody
+body :: StatefulParser RelationCount DatalogBody
 body = do rels <- sepByComma1 $ relation
+          resetCounter
           return $ DatalogBody $ concat rels
 
-sepByComma :: Parser a -> Parser [a]
-sepByComma p = do v <- p `sepBy` char ',' --(whitespace >> char ',' >> whitespace)
+sepByComma :: Stream s m Char => ParsecT s u m a -> ParsecT s u m [a]
+sepByComma p = do v <- p `sepBy` char ','
                   return v
 
-sepByComma1 :: Parser a -> Parser [a]
+sepByComma1 :: ParsecT String u (S.State RelationCount) a
+               -> ParsecT String u (S.State RelationCount) [a]
 sepByComma1 p = do v <- p `sepBy1` (whitespace >> char ',' >> whitespace)
                    return v
 
-relation :: Parser [TupleAttrRef]
+relation :: StatefulParser RelationCount [TupleAttrRef]
 relation = do relName <- many alphaNum
               refs <- bracketed $ sepByComma attrRef
-              return $ map (\(at, ag) -> TupleAttrRef {rel=Relation{name=relName, rid=0}, attr=at, arg=ag}) refs
-              -- TODO fact名をTupleAttrRefが持つのって冗長な(非正規的)な感じする
-              -- TODO fix rid
+              rId <- incrCounter relName
+              let rels = map (\(at, ag) -> TupleAttrRef {rel=Relation{name=relName, rid=rId}, attr=at, arg=ag}) refs
+              return rels
 
-bracketed :: Parser a -> Parser a
+bracketed :: ParsecT String u (S.State RelationCount) b
+             -> ParsecT String u (S.State RelationCount) b
 bracketed a = do void $ char '('
                  whitespace
                  v <- a
@@ -76,7 +111,7 @@ bracketed a = do void $ char '('
                  void $ char ')'
                  return v
 
-attrRef :: Parser (String, Arg)
+attrRef :: StatefulParser RelationCount (String, Arg)
 attrRef = do attrName <- many alphaNum
              whitespace
              void $ char ':'
@@ -84,18 +119,18 @@ attrRef = do attrName <- many alphaNum
              a <- argP
              return (attrName, a)
 
-argP :: Parser Arg
+argP :: StatefulParser RelationCount Arg
 argP = do a <- var <|> atom
           return $ a
 
-atom :: Parser Arg
+atom :: StatefulParser RelationCount Arg
 atom = do atomName <- many alphaNum
           return $ Atom atomName
 
-var :: Parser Arg
+var :: StatefulParser RelationCount Arg
 var = do x <- upper
          xs <- many alphaNum
          return $ Var (x:xs)
 
-whitespace :: Parser ()
+whitespace :: ParsecT String u (S.State RelationCount) ()
 whitespace = void $ many $ oneOf " \n\t"
