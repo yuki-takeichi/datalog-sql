@@ -19,6 +19,7 @@ library
   exposed-modules:     Data.Datalog
                      , Data.Datalog.AST
                      , Data.Datalog.Parser
+                     , Language.Datalog.Translator.SQL 
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8
