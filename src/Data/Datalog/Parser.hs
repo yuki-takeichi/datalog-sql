@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Data.Datalog.Parser ( 
   parse
-, DatalogParser
 ) where
 
 import Text.Parsec hiding (parse, sourceName)
@@ -19,10 +18,10 @@ type RelationCount      = (M.Map String Integer)
 parse :: String -> String -> Either ParseError DatalogStmt
 parse sourceName code = S.evalState (runPT stmt () sourceName code) M.empty
 
-stmt :: StatefulParser RelationCount DatalogStmt
+stmt :: DatalogParser DatalogStmt
 stmt = fact <|> rule <|> query
 
-incrCounter :: String -> StatefulParser RelationCount Integer
+incrCounter :: String -> DatalogParser Integer
 incrCounter key = do s <- S.get
                      let rId = getId key s 
                      S.modify $ incr key
@@ -36,27 +35,27 @@ incrCounter key = do s <- S.get
                   Just v -> v
                   Nothing -> 0
 
-resetCounter :: StatefulParser RelationCount ()
+resetCounter :: DatalogParser ()
 resetCounter = do S.put M.empty
                   return ()
 
-fact :: StatefulParser RelationCount DatalogStmt
+fact :: DatalogParser DatalogStmt
 fact = do r <- relation
           void $ char '.'
           return $ DatalogStmtFact $ DatalogFact $ DatalogBody r
 
-rule :: StatefulParser RelationCount DatalogStmt
+rule :: DatalogParser DatalogStmt
 rule = do rs <- ruleOne `sepBy` char ';'
           void $ char '.'
           return $ DatalogStmtRule $ DatalogRule rs
 
-ruleOne :: StatefulParser RelationCount (DatalogHead, DatalogBody)
+ruleOne :: DatalogParser (DatalogHead, DatalogBody)
 ruleOne = do h <- headP
              void $ string ":-"
              b <- body
              return (h, b)
 
-query :: StatefulParser RelationCount DatalogStmt
+query :: DatalogParser DatalogStmt
 query = do whitespace
            h <- queryHead
            whitespace
@@ -68,11 +67,11 @@ query = do whitespace
            whitespace
            return $ DatalogStmtQuery $ DatalogQuery h b -- TODO ?であることの制約
 
-queryHead :: StatefulParser RelationCount DatalogHead
+queryHead :: DatalogParser DatalogHead
 queryHead = do qrel <- queryHeadRelation
                return $ DatalogHead qrel
 
-queryHeadRelation :: StatefulParser RelationCount [TupleAttrRef]
+queryHeadRelation :: DatalogParser [TupleAttrRef]
 queryHeadRelation = do void $ char '?'
                        --refs <- bracketed $ attrRef `sepBy` (char ',')
                        refs <- bracketed $ sepByComma attrRef
@@ -82,12 +81,12 @@ queryHeadRelation = do void $ char '?'
                        -- このままでいいかも。
                        
 
-headP :: StatefulParser RelationCount DatalogHead
+headP :: DatalogParser DatalogHead
 headP = do r <- relation
            resetCounter
            return $ DatalogHead r
 
-body :: StatefulParser RelationCount DatalogBody
+body :: DatalogParser DatalogBody
 body = do rels <- sepByComma1 $ relation
           resetCounter
           return $ DatalogBody $ concat rels
@@ -101,7 +100,7 @@ sepByComma1 :: ParsecT String u (S.State RelationCount) a
 sepByComma1 p = do v <- p `sepBy1` (whitespace >> char ',' >> whitespace)
                    return v
 
-relation :: StatefulParser RelationCount [TupleAttrRef]
+relation :: DatalogParser [TupleAttrRef]
 relation = do relName <- many alphaNum
               refs <- bracketed $ sepByComma attrRef
               rId <- incrCounter relName
@@ -117,7 +116,7 @@ bracketed a = do void $ char '('
                  void $ char ')'
                  return v
 
-attrRef :: StatefulParser RelationCount (String, Arg)
+attrRef :: DatalogParser (String, Arg)
 attrRef = do attrName <- many alphaNum
              whitespace
              void $ char ':'
@@ -125,15 +124,15 @@ attrRef = do attrName <- many alphaNum
              a <- argP
              return (attrName, a)
 
-argP :: StatefulParser RelationCount Arg
+argP :: DatalogParser Arg
 argP = do a <- var <|> atom
           return $ a
 
-atom :: StatefulParser RelationCount Arg
+atom :: DatalogParser Arg
 atom = do atomName <- many alphaNum
           return $ Atom atomName
 
-var :: StatefulParser RelationCount Arg
+var :: DatalogParser Arg
 var = do x <- upper
          xs <- many alphaNum
          return $ Var (x:xs)
