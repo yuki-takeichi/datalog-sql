@@ -9,9 +9,6 @@ module Data.Datalog.AST (
 , DatalogStmt(..)
 , DatalogHead(..)
 , DatalogBody(..)
-, DatalogFact(..)
-, DatalogRule(..)
-, DatalogQuery(..)
 , CTE(..)
 , Relation(..)
 , genSQLAST
@@ -28,13 +25,10 @@ import Data.Maybe (catMaybes, isNothing)
 import Data.Map (Map, lookup)
 --import Data.List.NonEmpty ( NonEmpty(..) )
 
-data DatalogStmt = DatalogStmtFact DatalogFact
-                 | DatalogStmtRule DatalogRule
-                 | DatalogStmtQuery DatalogQuery
+data DatalogStmt = DatalogFact DatalogBody
+                 | DatalogRule [ (DatalogHead, DatalogBody) ]
+                 | DatalogQuery DatalogHead DatalogBody
                  deriving (Show, Eq)
-newtype DatalogFact  = DatalogFact DatalogBody deriving (Show, Eq)
-newtype DatalogRule  = DatalogRule [ (DatalogHead, DatalogBody) ] deriving (Show, Eq)
-data    DatalogQuery = DatalogQuery DatalogHead DatalogBody deriving (Show, Eq)
 
 newtype DatalogHead = DatalogHead [TupleAttrRef] deriving (Show, Eq)
 newtype DatalogBody = DatalogBody [TupleAttrRef] deriving (Show, Eq)
@@ -90,17 +84,20 @@ indent is = unlines $ padding 0 is
     shift level = map ((take level $ cycle " ") ++)
 
 
-genSQLAST :: Map String DatalogRule
-             -> [(DatalogHead, DatalogBody)]
+genSQLAST :: Map String DatalogStmt -- TODO MapのvalueがDatalotStmtだとlookupで毎回分岐の実装を強いられるのが辛いので変更する。
+             -> DatalogStmt
              -> SelectStmt
-genSQLAST rules rulesConverted = flattenWithClauses $ foldl1 Union $ map (genSimpleSelectAST rules) rulesConverted
+genSQLAST rules stmt = flattenWithClauses $ foldl1 Union $ [ genSimpleSelectAST rules stmt ]
   where
     flattenWithClauses :: SelectStmt -> SelectStmt
     flattenWithClauses = id -- TODO これを入れると読みやすいっていう人と読みにくいっていう人の2パターンいそう。optionalにできるとよい。
 
 
-genSimpleSelectAST :: Map String DatalogRule -> (DatalogHead, DatalogBody) -> SelectStmt
-genSimpleSelectAST rules (DatalogHead head, DatalogBody body) = SelectStmt {
+genSimpleSelectAST :: Map String DatalogStmt -> DatalogStmt -> SelectStmt
+genSimpleSelectAST _ (DatalogFact _) = undefined
+genSimpleSelectAST _ (DatalogQuery _ _) = undefined
+genSimpleSelectAST _ (DatalogRule []) = undefined
+genSimpleSelectAST rules (DatalogRule ((DatalogHead head, DatalogBody body):[])) = SelectStmt {
   withClauses = _withClauses,
   selectExprs = _selectExprs,
   fromTables = _fromTables,
@@ -149,7 +146,7 @@ genSimpleSelectAST rules (DatalogHead head, DatalogBody body) = SelectStmt {
         findRules :: String -> Maybe (String, SelectStmt)
         findRules rname = (fmap (\x -> (rname, hogehoge x))) . (\x -> lookup x rules) $ rname
           where
-            hogehoge :: DatalogRule -> SelectStmt
+            hogehoge :: DatalogStmt -> SelectStmt
             hogehoge = undefined
 
 
@@ -165,6 +162,7 @@ genSimpleSelectAST rules (DatalogHead head, DatalogBody body) = SelectStmt {
         constraintEquals r@TupleAttrRef{arg=Atom aname} = Just $ Equal (ColumnRef (tableName $ rel r) (attr r))
                                                           (SqlStr (aname))
         constraintEquals _ = Nothing
+genSimpleSelectAST _ (DatalogRule _) = undefined
 
 tableName :: Relation -> String
 tableName r = (name r) ++ (show $ rid r)
