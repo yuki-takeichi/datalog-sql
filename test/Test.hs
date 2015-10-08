@@ -149,7 +149,7 @@ test_generatorWithClause = expected @=? generateSQLCode stmt
              whereClause = [ Equal (ColumnRef "ancestor" "me") (SqlStr "yuki") ]
            }
     expected = Indent 0 [
-                 Line "with recursive ancestor (",
+                 Line "with recursive ancestor as (",
                  Indent 2 [
                    Line "select parent.me as me",
                    Indent 5 [
