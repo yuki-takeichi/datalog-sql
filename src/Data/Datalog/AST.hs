@@ -138,8 +138,8 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
     selectExpr :: SelectExpr -> IndentedString
     selectExpr (SelectExpr (ColumnRef _tableName _attrName) Nothing) = Line $ _tableName ++ "." ++ _attrName
     selectExpr (SelectExpr (ColumnRef _tableName _attrName) (Just _aliasName)) = Line $ _tableName ++ "." ++ _attrName ++ " as " ++ _aliasName
-    selectExpr (SelectExpr (SqlStr str) Nothing) = Line $ "\"" ++ str ++ "\""
-    selectExpr (SelectExpr (SqlStr str) (Just _aliasName)) = Line $ "\"" ++ str ++ "\"" ++ " as " ++ _aliasName
+    selectExpr (SelectExpr (SqlStr str) Nothing) = Line $ "'" ++ str ++ "'"
+    selectExpr (SelectExpr (SqlStr str) (Just _aliasName)) = Line $ "'" ++ str ++ "'" ++ " as " ++ _aliasName
 
     fromSQL :: [ TableRef ] -> [ IndentedString ]
     fromSQL [] = []
@@ -171,7 +171,7 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
 
     exprSQL :: Expr -> IndentedString
     exprSQL (ColumnRef _tableName _attrName) = Line $ _tableName ++ "." ++ _attrName
-    exprSQL (SqlStr str)                     = Line $ "\"" ++ str ++ "\"" -- TOOD sanitize!!
+    exprSQL (SqlStr str)                     = Line $ "'" ++ str ++ "'" -- TOOD sanitize!!
 {-
     predicate (NotEqual e1 e2) = binaryOperator "!=" e1 e2
     predicate (And es) = polyadicOperator "and" "true" es
