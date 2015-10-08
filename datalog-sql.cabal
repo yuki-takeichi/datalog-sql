@@ -35,6 +35,8 @@ executable repl
   main-is: repl.hs
   build-depends:       base >=4.7 && <4.8
                      , parsec >= 3.1
+                     , HDBC >= 2.4.0
+                     , HDBC-postgresql >= 2.3.2
                      , datalog-sql
   default-language:    Haskell2010
 
