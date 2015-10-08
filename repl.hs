@@ -1,17 +1,14 @@
-import Data.Datalog
-import Text.Parsec
+--import Data.Datalog
+--import Data.Datalog.AST
+--import Language.Datalog.Translator.SQL
+
+import Database.HDBC
+import Database.HDBC.PostgreSQL
 
 main :: IO ()
-main = do eitherFacts <- fromSource "./takeichi.datalog"
-          case eitherFacts of
-            Left _ -> return ()
-            Right fs -> repl fs
+main = withPostgreSQL "host=localhost dbname=test" (\conn ->
+        do runRaw conn "select * from parent;"
+           putStrLn "hoge"
+           return ()
+       )
 
-repl :: Facts -> IO ()
-repl fs = do putStr "?- "
-             line <- getLine
-             case parse query "" line of
-               Left _ -> return ()
-               Right q -> putStrLn $ show $ eval fs q
-             putStrLn ""
-             repl fs
