@@ -83,7 +83,7 @@ test_generatorSimple = expected @=? generateSQLCode stmt
              withClauses = [],
              selectExprs = [SelectExpr (ColumnRef "ancestor" "me") (Just "me"),SelectExpr (ColumnRef "ancestor" "him") (Just "him")],
              fromTables = [Table "ancestor" Nothing],
-             whereClause = []
+             whereClause = [ Equal (ColumnRef "ancestor" "me") (SqlStr "yuki") ]
            }
     expected = Indent 0 [
                  Line "select ancestor.me as me",
@@ -91,5 +91,9 @@ test_generatorSimple = expected @=? generateSQLCode stmt
                    Line ", ancestor.him as him"
                  ],
                  Line "from ancestor",
+                 Line "where true",
+                 Indent 2 [
+                   Line "and ancestor.me = \"yuki\""
+                 ],
                  Line ";"
                ]

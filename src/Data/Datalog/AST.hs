@@ -45,7 +45,7 @@ data SelectStmt = SelectStmt { -- order by, limitいれるとしたらこと
                     withClauses :: [CTE], -- union allのいるSelectStmtが1つでもあればRECURSIVEつける
                     selectExprs :: [SelectExpr],
                     fromTables  :: [TableRef],
-                    whereClause :: [Predicate]
+                    whereClause :: [Predicate] -- 連言
                   }
                 | Union SelectStmt SelectStmt
                 | UnionAll SelectStmt SelectStmt
@@ -80,15 +80,23 @@ indent is = unlines $ padding 0 is
 
 appendToFirstLine :: String -> IndentedString -> IndentedString
 appendToFirstLine str (Line l) = Line $ str ++ l
-appendToFirstLine str (Indent n []) = Indent n []
+appendToFirstLine str (Indent n []) = Indent n [ Line str ]
 appendToFirstLine str (Indent n (i:is)) = Indent n $ (appendToFirstLine str i):is
+
+appendToLastLine :: String -> IndentedString -> IndentedString
+appendToLastLine str (Line l) = Line $ l ++ str
+appendToLastLine str (Indent n []) = Indent n [ Line str ]
+appendToLastLine str (Indent n is) = Indent n $ (init is) ++ [appendToLastLine str (last is)]
+
+bridge :: String -> IndentedString -> IndentedString -> IndentedString
+bridge str (Line l) (Line l2) = Line $ l ++ str ++ l2
 
 
 generateSQLCode :: SelectStmt -> IndentedString
-generateSQLCode stmt = _generageSQLCode stmt
+generateSQLCode stmt = Indent 0 $ _generageSQLCode stmt
 
-_generageSQLCode :: SelectStmt -> IndentedString
-_generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereClause=ps} = Indent 0 $ selectExprSQL ss ++ fromSQL ts ++ [ Line ";" ]
+_generageSQLCode :: SelectStmt -> [ IndentedString ]
+_generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereClause=ps} = selectExprSQL ss ++ fromSQL ts ++ whereClauseSQL ps ++ [ Line ";" ]
   where
     selectExprSQL :: [ SelectExpr ] -> [ IndentedString ]
     selectExprSQL (s:[]) = [ appendToFirstLine "select " $ selectExpr s ]
@@ -111,17 +119,20 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
                                                  Indent 2 [generateSQLCode stmt],
                                                  Line $ ")" ++ " as " ++ alias
                                                ]
-{-
-    whereClause :: Predicate -> IndentedString
-    whereClause expr = Indent 0 [
-                          Block ["where true"],
-                          Indent 2 [
-                            predicate expr
-                          ]
+
+    whereClauseSQL :: [ Predicate ] -> [ IndentedString ]
+    whereClauseSQL ps = [
+                          Line "where true",
+                          Indent 2 $ map (appendToFirstLine ("and ") . predicateSQL) ps
                         ]
 
-    predicate :: Predicate -> IndentedString
-    predicate (Equal e1 e2) = binaryOperator "=" e1 e2
+    predicateSQL :: Predicate -> IndentedString
+    predicateSQL (Equal e1 e2) = bridge " = " (exprSQL e1) (exprSQL e2)
+
+    exprSQL :: Expr -> IndentedString
+    exprSQL (ColumnRef _tableName _attrName) = Line $ _tableName ++ "." ++ _attrName
+    exprSQL (SqlStr str)                     = Line $ "\"" ++ str ++ "\"" -- TOOD sanitize!!
+{-
     predicate (NotEqual e1 e2) = binaryOperator "!=" e1 e2
     predicate (And es) = polyadicOperator "and" "true" es
     predicate (Or es) = polyadicOperator "or" "false" es
