@@ -1,5 +1,5 @@
-drop table father;
-drop table mother;
+drop table if exists father;
+drop table if exists mother;
 
 create table father ( of text, me text) ;
 create table mother ( of text, me text) ;
