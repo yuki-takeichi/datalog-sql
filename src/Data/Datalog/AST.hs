@@ -93,11 +93,31 @@ bridge str (Line l) (Line l2) = Line $ l ++ str ++ l2
 
 
 generateSQLCode :: SelectStmt -> IndentedString
-generateSQLCode stmt = Indent 0 $ _generageSQLCode stmt
+generateSQLCode stmt = Indent 0 $ _generageSQLCode stmt ++ [Line ";"]
 
 _generageSQLCode :: SelectStmt -> [ IndentedString ]
-_generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereClause=ps} = selectExprSQL ss ++ fromSQL ts ++ whereClauseSQL ps ++ [ Line ";" ]
+_generageSQLCode (UnionAll s1 s2) = _generageSQLCode s1 ++ [Line "union all"] ++ _generageSQLCode s2
+_generageSQLCode (Union s1 s2) = _generageSQLCode s1 ++ [Line "union"] ++ _generageSQLCode s2
+_generageSQLCode (Intersect s1 s2) = _generageSQLCode s1 ++ [Line "intersect"] ++ _generageSQLCode s2
+_generageSQLCode (Except s1 s2) = _generageSQLCode s1 ++ [Line "except"] ++ _generageSQLCode s2
+_generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereClause=ps} = cteSQL ctes ++ selectExprSQL ss ++ fromSQL ts ++ whereClauseSQL ps
   where
+    withLiteral = if any (\(CTE _ stmt) -> hasUnionAll stmt) ctes then "with recursive" else "with"
+    hasUnionAll :: SelectStmt -> Bool
+    hasUnionAll (SelectStmt{})    = False
+    hasUnionAll (UnionAll _ _)    = True
+    hasUnionAll (Union s1 s2)     = hasUnionAll s1 || hasUnionAll s2
+    hasUnionAll (Intersect s1 s2) = hasUnionAll s1 || hasUnionAll s2
+    hasUnionAll (Except s1 s2)    = hasUnionAll s1 || hasUnionAll s2
+
+    cteSQL :: [ CTE ] -> [ IndentedString ]
+    cteSQL [] = []
+    cteSQL ((CTE name stmt):[]) = [
+                                   Line $ withLiteral ++ " " ++ name ++ " (",
+                                   Indent 2 $ _generageSQLCode stmt,
+                                   Line ")"
+                                ]
+
     selectExprSQL :: [ SelectExpr ] -> [ IndentedString ]
     selectExprSQL (s:[]) = [ appendToFirstLine "select " $ selectExpr s ]
     selectExprSQL (s:ss) = [ appendToFirstLine "select " $ selectExpr s, Indent 5 $ map ((appendToFirstLine ", ") . selectExpr) ss ]
@@ -121,6 +141,7 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
                                                ]
 
     whereClauseSQL :: [ Predicate ] -> [ IndentedString ]
+    whereClauseSQL [] = []
     whereClauseSQL ps = [
                           Line "where true",
                           Indent 2 $ map (appendToFirstLine ("and ") . predicateSQL) ps
