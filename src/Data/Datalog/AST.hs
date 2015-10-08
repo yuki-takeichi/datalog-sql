@@ -96,8 +96,8 @@ generateSQLCode :: SelectStmt -> IndentedString
 generateSQLCode stmt = Indent 0 $ _generageSQLCode stmt ++ [Line ";"]
 
 _generageSQLCode :: SelectStmt -> [ IndentedString ]
-_generageSQLCode (UnionAll s1 s2) = _generageSQLCode s1 ++ [Line "union all"] ++ _generageSQLCode s2
-_generageSQLCode (Union s1 s2) = _generageSQLCode s1 ++ [Line "union"] ++ _generageSQLCode s2
+_generageSQLCode (UnionAll s1 s2) = [Line "(" ] ++ _generageSQLCode s1 ++ [Line ")", Line "union all", Line "("] ++ _generageSQLCode s2 ++ [Line ")"]
+_generageSQLCode (Union s1 s2) = [Line "(" ] ++ _generageSQLCode s1 ++ [Line ")", Line "union", Line "("] ++ _generageSQLCode s2 ++ [Line ")"]
 _generageSQLCode (Intersect s1 s2) = _generageSQLCode s1 ++ [Line "intersect"] ++ _generageSQLCode s2
 _generageSQLCode (Except s1 s2) = _generageSQLCode s1 ++ [Line "except"] ++ _generageSQLCode s2
 _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereClause=ps} = cteSQL ctes ++ selectExprSQL ss ++ fromSQL ts ++ whereClauseSQL ps
