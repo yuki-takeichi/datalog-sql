@@ -11,8 +11,7 @@ module Data.Datalog.AST (
 , DatalogBody(..)
 , CTE(..)
 , Relation(..)
---, genSQLString
---, genSQLStringIndented
+, generateSQLCode
 , IndentedString(..)
 , indent
 --, joins
@@ -67,43 +66,52 @@ data Expr = ColumnRef String String
           | SqlStr String deriving (Show, Eq)
 
 data IndentedString = Indent Int [IndentedString]
-                    | Block [String] deriving (Show, Eq)
+                    | Line String deriving (Show, Eq)
 
 indent :: IndentedString -> String
 indent is = unlines $ padding 0 is
   where
     padding :: Int -> IndentedString -> [String]
-    padding level (Block strs) = shift level strs
+    padding level (Line str) = [shift level str]
     padding level (Indent innerLevel bs) = concatMap (padding $ level+innerLevel) bs
 
-    shift :: Int -> [String] -> [String]
-    shift level = map ((take level $ cycle " ") ++)
+    shift :: Int -> String -> String
+    shift level = ((take level $ cycle " ") ++)
+
+appendToFirstLine :: String -> IndentedString -> IndentedString
+appendToFirstLine str (Line l) = Line $ str ++ l
+appendToFirstLine str (Indent n []) = Indent n []
+appendToFirstLine str (Indent n (i:is)) = Indent n $ (appendToFirstLine str i):is
 
 
+generateSQLCode :: SelectStmt -> IndentedString
+generateSQLCode stmt = _generageSQLCode stmt
 
---joins :: [TupleAttrRef] -> [[TupleAttrRef]]
---joins refs = let varRefs = filter isVarRef refs
-                    --in groupBy (\r1 r2 -> arg r1 == arg r2) varRefs
-
---isVarRef :: TupleAttrRef -> Bool
---isVarRef TupleAttrRef{arg=Var _} = True
---isVarRef _ = False
-
-{-
-genSQLString :: SelectStmt -> IndentedString
-genSQLString stmt = genSQLStringIndented stmt
-
-genSQLStringIndented :: SelectStmt -> IndentedString
-genSQLStringIndented SelectStmt{withClauses=_withClause,selectExprs=_selectExprs,fromTables=_fromTables,whereClause=_whereClause} = undefined
+_generageSQLCode :: SelectStmt -> IndentedString
+_generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereClause=ps} = Indent 0 $ selectExprSQL ss ++ fromSQL ts ++ [ Line ";" ]
   where
+    selectExprSQL :: [ SelectExpr ] -> [ IndentedString ]
+    selectExprSQL (s:[]) = [ appendToFirstLine "select " $ selectExpr s ]
+    selectExprSQL (s:ss) = [ appendToFirstLine "select " $ selectExpr s, Indent 5 $ map ((appendToFirstLine ", ") . selectExpr) ss ]
+
+    selectExpr :: SelectExpr -> IndentedString
+    selectExpr (SelectExpr (ColumnRef _tableName _attrName) Nothing) = Line $ _tableName ++ "." ++ _attrName
+    selectExpr (SelectExpr (ColumnRef _tableName _attrName) (Just _aliasName)) = Line $ _tableName ++ "." ++ _attrName ++ " as " ++ _aliasName
+
+    fromSQL :: [ TableRef ] -> [ IndentedString ]
+    fromSQL [] = []
+    fromSQL (t:[]) = [ appendToFirstLine "from " $ tableRef t ]
+    fromSQL (t:ts) = [ appendToFirstLine "from " $ tableRef t, Indent 3 $ map (\t -> appendToFirstLine ", " $ tableRef t) ts]
+
     tableRef :: TableRef -> IndentedString
-    tableRef (Table tableName (Just aliasName)) = Block [tableName ++ " as " ++ aliasName]
-    tableRef (Table tableName Nothing) = Block [tableName]
+    tableRef (Table tableName (Just aliasName)) = Line $ tableName ++ " as " ++ aliasName
+    tableRef (Table tableName Nothing) = Line tableName
     tableRef (SubSelect stmt alias) = Indent 0 [
-                                                 Block ["("],
-                                                 Indent 2 [genSQLStringIndented stmt],
-                                                 Block [")" ++ " as " ++ alias]
+                                                 Line "(",
+                                                 Indent 2 [generateSQLCode stmt],
+                                                 Line $ ")" ++ " as " ++ alias
                                                ]
+{-
     whereClause :: Predicate -> IndentedString
     whereClause expr = Indent 0 [
                           Block ["where true"],
