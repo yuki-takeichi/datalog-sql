@@ -1,2 +1,2 @@
-parent(me:X,him:Y):-father(me:X,him:Y);parent(me:X,him:Y):-mother(me:X,him:Y).
-?(me:X,him:Y):-parent(me:X,him:Y).
+parent(me:X,of:Y):-father(me:X,of:Y);parent(me:X,of:Y):-mother(me:X,of:Y).
+?(me:X,of:Y):-parent(me:X,of:Y).
