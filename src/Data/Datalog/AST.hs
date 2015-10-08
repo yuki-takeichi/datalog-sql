@@ -113,18 +113,33 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
     cteSQL :: [ CTE ] -> [ IndentedString ]
     cteSQL [] = []
     cteSQL ((CTE name stmt):[]) = [
-                                   Line $ withLiteral ++ " " ++ name ++ " (",
-                                   Indent 2 $ _generageSQLCode stmt,
-                                   Line ")"
-                                ]
+                                     Line $ withLiteral ++ " " ++ name ++ " (",
+                                     Indent 2 $ _generageSQLCode stmt,
+                                     Line ")"
+                                   ]
+    cteSQL ((CTE name stmt):ctes) = [
+                                      Line $ withLiteral ++ " " ++ name ++ " (",
+                                      Indent 2 $ _generageSQLCode stmt,
+                                      Line ")"
+                                    ] ++ (concat (map notFirstCTE ctes))
+      where
+        notFirstCTE :: CTE -> [ IndentedString ]
+        notFirstCTE (CTE name stmt) = [
+                                         Line $ ", " ++ name ++ " (",
+                                         Indent 2 $ _generageSQLCode stmt,
+                                         Line ")"
+                                      ]
 
     selectExprSQL :: [ SelectExpr ] -> [ IndentedString ]
+    selectExprSQL [] = error "no column"
     selectExprSQL (s:[]) = [ appendToFirstLine "select " $ selectExpr s ]
     selectExprSQL (s:ss) = [ appendToFirstLine "select " $ selectExpr s, Indent 5 $ map ((appendToFirstLine ", ") . selectExpr) ss ]
 
     selectExpr :: SelectExpr -> IndentedString
     selectExpr (SelectExpr (ColumnRef _tableName _attrName) Nothing) = Line $ _tableName ++ "." ++ _attrName
     selectExpr (SelectExpr (ColumnRef _tableName _attrName) (Just _aliasName)) = Line $ _tableName ++ "." ++ _attrName ++ " as " ++ _aliasName
+    selectExpr (SelectExpr (SqlStr str) Nothing) = Line $ "\"" ++ str ++ "\""
+    selectExpr (SelectExpr (SqlStr str) (Just _aliasName)) = Line $ "\"" ++ str ++ "\"" ++ " as " ++ _aliasName
 
     fromSQL :: [ TableRef ] -> [ IndentedString ]
     fromSQL [] = []
@@ -149,6 +164,10 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
 
     predicateSQL :: Predicate -> IndentedString
     predicateSQL (Equal e1 e2) = bridge " = " (exprSQL e1) (exprSQL e2)
+    predicateSQL (NotEqual _ _) = undefined
+    predicateSQL (And _ _) = undefined
+    predicateSQL (Or _ _) = undefined
+    predicateSQL (Not _ ) = undefined
 
     exprSQL :: Expr -> IndentedString
     exprSQL (ColumnRef _tableName _attrName) = Line $ _tableName ++ "." ++ _attrName
