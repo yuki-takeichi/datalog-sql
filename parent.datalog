@@ -1,0 +1,2 @@
+parent(me:X,him:Y):-father(me:X,him:Y);parent(me:X,him:Y):-mother(me:X,him:Y).
+?(me:X,him:Y):-parent(me:X,him:Y).

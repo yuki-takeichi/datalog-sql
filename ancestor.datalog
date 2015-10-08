@@ -1,0 +1,2 @@
+ancestor(me:X,him:Y):-parent(me:X,him:Y);ancestor(me:X,him:Y):-parent(me:X,him:P),ancestor(me:P,him:Y).
+?(me:X,him:Y):-ancestor(me:X,him:Y).
