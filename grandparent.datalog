@@ -1,0 +1,3 @@
+parent(me:X,of:Y):-father(me:X,of:Y);parent(me:X,of:Y):-mother(me:X,of:Y).
+grandparent(me:X,of:Y):-parent(me:X,of:P),parent(me:P,of:Y).
+?(me:X,of:Y):-grandparent(me:X,of:Y).
