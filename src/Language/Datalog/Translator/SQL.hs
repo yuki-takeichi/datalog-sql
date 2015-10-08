@@ -91,12 +91,7 @@ genSimpleSelectAST rules (DatalogRule ((DatalogHead head, DatalogBody body):[]))
   fromTables = _fromTables body,
   whereClause = _whereClause head body
 }
-genSimpleSelectAST _ (DatalogRule _) = SelectStmt {
-  withClauses = [],
-  selectExprs = [],
-  fromTables = [],
-  whereClause = []
-}
+genSimpleSelectAST rules (DatalogRule rs) = foldl1 Union $ map (\r -> genSimpleSelectAST rules (DatalogRule(r:[]))) rs
 genSimpleSelectAST rules (DatalogQuery (DatalogHead head) (DatalogBody body)) = SelectStmt {
   withClauses = _withClauses rules body,
   selectExprs = _selectExprs head body,

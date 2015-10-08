@@ -13,12 +13,13 @@ import Data.Map as M
 sqlTranslatorTests :: Test
 sqlTranslatorTests = testGroup "Translate datalog AST to SQL AST" [
                        testGroup "Rule" [
-                         testCase "Simple" test_genSQLASTRule
+                         testCase "Simple" test_genSQLASTRule,
+                         testCase "Disjunctive" test_genSQLASTRuleDisjunctive
                        ],
                        testGroup "Query" [
                          testCase "Simple" test_genSQLASTQuery,
-                         testCase "query with conjunctive rule" test_genSQLASTQueryNoRecursive,
-                         testCase "query with recursive and conjunctive rule" undefined
+                         testCase "With conjunctive rule" test_genSQLASTQueryNoRecursive,
+                         testCase "With recursive and conjunctive rule" test_genSQLASTQueryRecursive
                        ]
                      ]
 
@@ -50,6 +51,63 @@ grandparentView = SelectStmt {
 
 test_genSQLASTRule :: Assertion
 test_genSQLASTRule = grandparentView @=? genSQLAST M.empty ruleGrandParent
+
+-- parent(me: X, him: Y) :- father(me: X, him: Y).
+-- parent(me: X, him: Y) :- mother(me, X, him: Y).
+ruleParent :: DatalogStmt
+ruleParent = DatalogRule [ (fHead, fBody), (mHead, mBody) ]
+  where
+    fHead :: DatalogHead
+    fHead = DatalogHead [ 
+                  TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="me", arg=Var "X"},
+                  TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="him", arg=Var "Y"}
+                ]
+    fBody :: DatalogBody
+    fBody = DatalogBody [
+                  TupleAttrRef {rel=Relation{name="father", rid=0}, attr="me", arg=Var "X"},
+                  TupleAttrRef {rel=Relation{name="father", rid=0}, attr="him", arg=Var "Y"}
+                ]
+    mHead :: DatalogHead
+    mHead = DatalogHead [ 
+                  TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="me", arg=Var "X"},
+                  TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="him", arg=Var "Y"}
+                ]
+    mBody :: DatalogBody
+    mBody = DatalogBody [
+                  TupleAttrRef {rel=Relation{name="mother", rid=0}, attr="me", arg=Var "X"},
+                  TupleAttrRef {rel=Relation{name="mother", rid=0}, attr="him", arg=Var "Y"}
+                ]
+
+
+-- select father.me as me
+--      , father.him as him
+-- from father
+-- union
+-- select mother.me as me
+--      , mother.him as him
+-- from mother
+parentView :: SelectStmt
+parentView = Union father mother
+  where
+    father :: SelectStmt
+    father = SelectStmt {
+            withClauses = [],
+            selectExprs = [ SelectExpr (ColumnRef "father" "me") (Just "me")
+                          , SelectExpr (ColumnRef "father" "him") (Just "him") ],
+            fromTables = [ Table "father" Nothing ],
+            whereClause = []
+          }
+    mother :: SelectStmt
+    mother = SelectStmt {
+            withClauses = [],
+            selectExprs = [ SelectExpr (ColumnRef "mother" "me") (Just "me")
+                          , SelectExpr (ColumnRef "mother" "him") (Just "him") ],
+            fromTables = [ Table "mother" Nothing ],
+            whereClause = []
+          }
+
+test_genSQLASTRuleDisjunctive :: Assertion
+test_genSQLASTRuleDisjunctive = parentView @=? genSQLAST M.empty ruleParent
 
 -- ?(him: X) :- ancestor(me: yuki, him: X), grandparent(me: masaki, him: X).
 {- select ancestor.him as him
@@ -117,5 +175,65 @@ test_genSQLASTQueryNoRecursive = sql @=? genSQLAST (M.fromList [("grandparent", 
             selectExprs = [ SelectExpr (ColumnRef "grandparent" "me") (Just "me")
                           , SelectExpr (ColumnRef "grandparent" "him") (Just "him") ],
             fromTables = [ Table "grandparent" Nothing ],
+            whereClause = []
+          }
+
+-- ancestor(me: X, him: Y) :- parent(me: X, him: Y) ;
+-- ancestor(me: X, him: Y) :- parent(me: X, him: P), ancestor(me: P, him:Y).
+ruleAncestor :: DatalogStmt
+ruleAncestor = DatalogRule [ (baseHead, baseBody), (recHead, recBody) ]
+  where
+    baseHead :: DatalogHead
+    baseHead = undefined
+    baseBody :: DatalogBody
+    baseBody = undefined
+    recHead :: DatalogHead
+    recHead = undefined
+    recBody :: DatalogBody
+    recBody = undefined
+
+-- with recursive ancestor (
+--   select parent.me as me
+--        , parent.him as him
+--   from parent
+--   union all
+--   select parent.me as me
+--        , ancestor.him as him
+--   from parent
+--      , ancestor
+-- )
+ancestorView :: CTE
+ancestorView = CTE "ancestor" SelectStmt {
+  withClauses = [],
+  selectExprs = [],
+  fromTables = [],
+  whereClause = []
+}
+
+-- select ancestor.me as him
+--      , ancestor.him as him
+-- from ancestor
+test_genSQLASTQueryRecursive :: Assertion
+test_genSQLASTQueryRecursive = sql @=? genSQLAST (M.fromList [("ancestor", ruleAncestor)]) query
+  where
+    -- ?(me: X, him: Y) :- ancestor(me: X, him: Y).
+    query :: DatalogStmt
+    query = DatalogQuery queryHead queryBody
+    queryHead :: DatalogHead
+    queryHead = DatalogHead [ 
+                  TupleAttrRef {rel=Relation{name="?", rid=0}, attr="me", arg=Var "X"},
+                  TupleAttrRef {rel=Relation{name="?", rid=0}, attr="him", arg=Var "Y"}
+                ]
+    queryBody :: DatalogBody
+    queryBody = DatalogBody [
+                  TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="me", arg=Var "X"},
+                  TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="him", arg=Var "Y"}
+                ]
+    sql :: SelectStmt
+    sql = SelectStmt {
+            withClauses = [ ancestorView ],
+            selectExprs = [ SelectExpr (ColumnRef "ancestor" "me") (Just "me")
+                          , SelectExpr (ColumnRef "ancestor" "him") (Just "him") ],
+            fromTables = [ Table "ancestor" Nothing ],
             whereClause = []
           }
