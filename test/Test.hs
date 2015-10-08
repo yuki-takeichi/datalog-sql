@@ -29,6 +29,7 @@ tests = [
           testGroup "Integration: Transtale datalog code to SQL code" [
             testCase "Simple" test_integSimple
             --testCase "Disjunctive" test_integDisjunctive
+            --testCase "Recursive" test_integRecursive
           ],
           parserTests,
           sqlTranslatorTests,
@@ -55,8 +56,26 @@ from parent
 |]
     datalog = [str|?(me:X,him:Y):-parent(me:X,him:Y).|]
 
---test_integDisjunctive :: Assertion
---test_integDisjunctive = undefined
+test_integDisjunctive :: Assertion
+test_integDisjunctive = testTranslator datalog sql
+  where
+    sql = [str|
+with parent as (
+  select father.me as me
+       , father.him as him
+  from father
+  union
+  select mother.me as me
+       , mother.him as him
+  from mother
+)
+select parent.me as me
+     , parent.him as him
+from parent
+;
+|]
+    datalog = [str|parent(me:X,him:Y):-father(me:X,him:Y);parent(me:X,him:Y):-mother(me:X,him:Y).
+?(me:X,him:Y):-parent(me:X,him:Y).|]
 
 test_indent :: Assertion
 test_indent = expected @=? indent is

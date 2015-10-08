@@ -3,7 +3,7 @@ module Language.Datalog.Translator.SQL (
 ) where
 
 import Prelude hiding (lookup, head)
-import Data.List ({-groupBy, -}nub)
+import Data.List (nub)
 import Data.Maybe (catMaybes, isNothing)
 import Data.Map (Map, lookup, delete)
 
@@ -11,13 +11,13 @@ import Data.Datalog.AST
 
 type VarName = String
 
-genSQLAST :: Map String DatalogStmt -- TODO MapのvalueがDatalotStmtだとlookupで毎回分岐の実装を強いられるのが辛いので変更する。
+genSQLAST :: Map String DatalogStmt
              -> DatalogStmt
              -> SelectStmt
 genSQLAST rules stmt = flattenWithClauses $ foldl1 Union $ [ genSimpleSelectAST rules stmt ]
   where
     flattenWithClauses :: SelectStmt -> SelectStmt
-    flattenWithClauses = id -- TODO これを入れると読みやすいっていう人と読みにくいっていう人の2パターンいそう。optionalにできるとよい。
+    flattenWithClauses = id
 
 varNames :: [TupleAttrRef] -> [TupleAttrRef] -> [String]
 varNames head body = nub $ catMaybes $ map varName $ head++body
@@ -47,7 +47,7 @@ _withClauses rules body = map (uncurry CTE) $ catMaybes $ map findRule $ findTab
   where
     findTables :: [ String ]
     findTables = catMaybes $ map (\x -> case x of
-                                          Table name_ _ -> Just name_ -- TODO handle Table alias
+                                          Table name_ _ -> Just name_
                                           _ -> Nothing) $ _fromTables body
     findRule :: String -> Maybe (String, SelectStmt)
     findRule rname = (fmap (\x -> (rname, genInnerSelect x))) . (\x -> lookup x rules) $ rname
@@ -82,20 +82,18 @@ _withClauses rules body = map (uncurry CTE) $ catMaybes $ map findRule $ findTab
 _selectExprs :: [ TupleAttrRef ] -> [ TupleAttrRef ] -> [ SelectExpr ]
 _selectExprs head body = catMaybes $ map ((fmap (\(h, r) -> SelectExpr (ColumnRef (tableName $ rel r) (attr r)) (Just $ attr h))).hage) head
   where
-    hage r@TupleAttrRef{arg=Var vname} = Just (r, (varAttrs vname body)!!0) -- !!0は重複ロジックなのでリファクタ必要
+    hage r@TupleAttrRef{arg=Var vname} = Just (r, (varAttrs vname body)!!0)
     hage _ = Nothing
 
 
 joins :: [ TupleAttrRef ] -> [ TupleAttrRef ] -> [[ TupleAttrRef ]]
 joins head body = map (\vname -> varAttrs vname body) $ varNames head body
--- TODO groupBy を使ってもっと綺麗に書きたいよー
--- TODO ?が付いているfactは除外しないと...
 
 constraints :: [ TupleAttrRef ] -> [ TupleAttrRef ]
 constraints body = filter (isNothing.varName) body
 
 _whereClause :: [ TupleAttrRef ] -> [ TupleAttrRef ] -> [ Predicate ]
-_whereClause head body = catMaybes $ map joinEquals (concat $ map something $ joins head body) ++ map constraintEquals (constraints body)
+_whereClause head body = catMaybes $ map joinEquals (concat $ map pairsWithFirstElement $ joins head body) ++ map constraintEquals (constraints body)
   where
     joinEquals :: (TupleAttrRef, TupleAttrRef) -> Maybe Predicate
     joinEquals (r1@TupleAttrRef{arg=Var _}, r2@TupleAttrRef{arg=Var _}) = Just $ Equal (ColumnRef (tableName $ rel r1) (attr r1))
@@ -122,18 +120,11 @@ genSimpleSelectAST rules (DatalogQuery (DatalogHead head) (DatalogBody body)) = 
   fromTables = _fromTables body,
   whereClause = _whereClause head body
 }
-  where 
-    --freeVarNames :: [String]
-    --freeVarNames = nub $ catMaybes $ map varName $ head
 
-    --freeVars :: [ TupleAttrRef ]
-    --freeVars = filter isVarRef head
-
-
-something :: [a] -> [(a,a)] -- TODO rename
-something [] = []
-something (_:[]) = [] -- 変数への参照がひとつしかない場合は空
-something (x:xs) = reverse $ somethingHoge x xs []
-  where somethingHoge _ [] piyo = piyo
-        somethingHoge y (y':ys) piyo = somethingHoge y ys $ (y, y') : piyo
+pairsWithFirstElement :: [a] -> [(a,a)]
+pairsWithFirstElement [] = []
+pairsWithFirstElement (_:[]) = []
+pairsWithFirstElement (x:xs) = reverse $ _pairsWithFirstElement x xs []
+  where _pairsWithFirstElement _ [] piyo = piyo
+        _pairsWithFirstElement y (y':ys) piyo = _pairsWithFirstElement y ys $ (y, y') : piyo
 
