@@ -5,7 +5,7 @@ module Language.Datalog.Translator.SQL (
 import Prelude hiding (lookup, head)
 import Data.List ({-groupBy, -}nub)
 import Data.Maybe (catMaybes, isNothing)
-import Data.Map (Map, lookup)
+import Data.Map (Map, lookup, delete)
 
 import Data.Datalog.AST
 
@@ -43,17 +43,41 @@ tableName Relation{name=rname, rid=0}   = rname
 tableName Relation{name=rname, rid=rId} = rname ++ (show $ rId)
 
 _withClauses :: (Map String DatalogStmt) -> [TupleAttrRef] -> [ CTE ]
-_withClauses rules body = map (uncurry CTE) $ catMaybes $ map findRules $ findTables
+_withClauses rules body = map (uncurry CTE) $ catMaybes $ map findRule $ findTables
   where
     findTables :: [ String ]
     findTables = catMaybes $ map (\x -> case x of
                                           Table name_ _ -> Just name_ -- TODO handle Table alias
                                           _ -> Nothing) $ _fromTables body
-    findRules :: String -> Maybe (String, SelectStmt)
-    findRules rname = (fmap (\x -> (rname, hogehoge x))) . (\x -> lookup x rules) $ rname
+    findRule :: String -> Maybe (String, SelectStmt)
+    findRule rname = (fmap (\x -> (rname, genInnerSelect x))) . (\x -> lookup x rules) $ rname
       where
-        hogehoge :: DatalogStmt -> SelectStmt
-        hogehoge stmt = genSQLAST rules stmt
+        genInnerSelect :: DatalogStmt -> SelectStmt
+        genInnerSelect rule | isRecursive rule = genInnerRecursiveSelect rule
+        genInnerSelect rule | otherwise        = genInnerNonRecursiveSelect rule
+        genInnerNonRecursiveSelect :: DatalogStmt -> SelectStmt
+        genInnerNonRecursiveSelect r = genSQLAST rules r
+        genInnerRecursiveSelect :: DatalogStmt -> SelectStmt
+        genInnerRecursiveSelect (DatalogFact _) = undefined
+        genInnerRecursiveSelect (DatalogQuery _ _) = undefined
+        genInnerRecursiveSelect (DatalogRule rs) = UnionAll noRecs recs
+          where
+            noRecs = foldl1 Union $ map (\r -> genSimpleSelectAST rules (DatalogRule(r:[]))) $ filter (not . _isRecursive) rs
+            recs = foldl1 UnionAll $ map (\r -> genSimpleSelectAST rulesWithoutItself (DatalogRule(r:[]))) $ filter _isRecursive rs
+              where
+                rulesWithoutItself = let (DatalogHead h, DatalogBody _) = rs!!0
+                                     in delete (name $ rel $ h!!0) rules
+
+        isRecursive :: DatalogStmt -> Bool
+        isRecursive (DatalogFact _) = False
+        isRecursive (DatalogQuery _ _) = False
+        isRecursive (DatalogRule rs) = any _isRecursive rs
+
+        _isRecursive :: (DatalogHead, DatalogBody) -> Bool
+        _isRecursive (DatalogHead _head, DatalogBody _body) = target `elem` bodyRels
+          where
+            target = name $ rel $ _head!!0
+            bodyRels = nub $ map (name . rel) _body
 
 _selectExprs :: [ TupleAttrRef ] -> [ TupleAttrRef ] -> [ SelectExpr ]
 _selectExprs head body = catMaybes $ map ((fmap (\(h, r) -> SelectExpr (ColumnRef (tableName $ rel r) (attr r)) (Just $ attr h))).hage) head

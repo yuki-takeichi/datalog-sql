@@ -43,7 +43,7 @@ data Arg = Atom String
 
 -- SQL.AST
 data SelectStmt = SelectStmt { -- order by, limitいれるとしたらこと
-                    withClauses :: [CTE], -- union allのいるSelectStmtが一つでもあればRECURSIVEつける
+                    withClauses :: [CTE], -- union allのいるSelectStmtが1つでもあればRECURSIVEつける
                     selectExprs :: [SelectExpr],
                     fromTables  :: [TableRef],
                     whereClause :: [Predicate]

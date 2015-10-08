@@ -184,13 +184,27 @@ ruleAncestor :: DatalogStmt
 ruleAncestor = DatalogRule [ (baseHead, baseBody), (recHead, recBody) ]
   where
     baseHead :: DatalogHead
-    baseHead = undefined
+    baseHead = DatalogHead [ 
+                 TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="me", arg=Var "X"},
+                 TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="him", arg=Var "Y"}
+               ]
     baseBody :: DatalogBody
-    baseBody = undefined
+    baseBody = DatalogBody [
+                 TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="me", arg=Var "X"},
+                 TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="him", arg=Var "Y"}
+               ]
     recHead :: DatalogHead
-    recHead = undefined
+    recHead = DatalogHead [ 
+                TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="me", arg=Var "X"},
+                TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="him", arg=Var "Y"}
+              ]
     recBody :: DatalogBody
-    recBody = undefined
+    recBody = DatalogBody [
+                TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="me", arg=Var "X"},
+                TupleAttrRef {rel=Relation{name="parent", rid=0}, attr="him", arg=Var "P"},
+                TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="me", arg=Var "P"},
+                TupleAttrRef {rel=Relation{name="ancestor", rid=0}, attr="him", arg=Var "Y"}
+              ]
 
 -- with recursive ancestor (
 --   select parent.me as me
@@ -203,12 +217,20 @@ ruleAncestor = DatalogRule [ (baseHead, baseBody), (recHead, recBody) ]
 --      , ancestor
 -- )
 ancestorView :: CTE
-ancestorView = CTE "ancestor" SelectStmt {
-  withClauses = [],
-  selectExprs = [],
-  fromTables = [],
-  whereClause = []
-}
+ancestorView = CTE "ancestor" $ UnionAll base rec
+  where
+    base = SelectStmt {
+      withClauses = [],
+      selectExprs = [],
+      fromTables = [],
+      whereClause = []
+    }
+    rec = SelectStmt {
+      withClauses = [],
+      selectExprs = [],
+      fromTables = [],
+      whereClause = []
+    }
 
 -- select ancestor.me as him
 --      , ancestor.him as him
