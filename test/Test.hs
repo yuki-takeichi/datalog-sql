@@ -4,14 +4,17 @@ import Test.Framework (defaultMain, testGroup, Test)
 import Test.Framework.Providers.HUnit (testCase)
 --import Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Test.HUnit (Assertion, assertBool, (@=?))
+import Test.HUnit (Assertion, assertBool, (@=?), assertFailure)
 --import Test.QuickCheck
+
+import Data.Map as M
 
 import ParserTest
 import SQLTranslatorTest
 
---import Data.Map as M
 import Data.Datalog.AST
+import Data.Datalog.Parser
+import Language.Datalog.Translator.SQL 
 
 import Str
 
@@ -24,6 +27,8 @@ pass = assertBool "pass" True
 tests :: [Test]
 tests = [
           testGroup "Integration: Transtale datalog code to SQL code" [
+            testCase "Simple" test_integSimple
+            --testCase "Disjunctive" test_integDisjunctive
           ],
           parserTests,
           sqlTranslatorTests,
@@ -35,6 +40,23 @@ tests = [
         ]
 
 
+testTranslator :: String -> String -> Assertion
+testTranslator datalog sql = case parse "(test)" datalog of
+                               Left e -> assertFailure $ show e
+                               Right dstmt -> sql @=? (indent $ generateSQLCode $ genSQLAST M.empty dstmt)
+
+test_integSimple :: Assertion
+test_integSimple = testTranslator datalog sql
+  where
+    sql = [str|select parent.me as me
+     , parent.him as him
+from parent
+;
+|]
+    datalog = [str|?(me:X,him:Y):-parent(me:X,him:Y).|]
+
+--test_integDisjunctive :: Assertion
+--test_integDisjunctive = undefined
 
 test_indent :: Assertion
 test_indent = expected @=? indent is
