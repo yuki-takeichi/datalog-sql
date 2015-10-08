@@ -113,19 +113,19 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
     cteSQL :: [ CTE ] -> [ IndentedString ]
     cteSQL [] = []
     cteSQL ((CTE name stmt):[]) = [
-                                     Line $ withLiteral ++ " " ++ name ++ " (",
+                                     Line $ withLiteral ++ " " ++ name ++ " as (",
                                      Indent 2 $ _generageSQLCode stmt,
                                      Line ")"
                                    ]
     cteSQL ((CTE name stmt):ctes) = [
-                                      Line $ withLiteral ++ " " ++ name ++ " (",
+                                      Line $ withLiteral ++ " " ++ name ++ " as (",
                                       Indent 2 $ _generageSQLCode stmt,
                                       Line ")"
                                     ] ++ (concat (map notFirstCTE ctes))
       where
         notFirstCTE :: CTE -> [ IndentedString ]
         notFirstCTE (CTE name stmt) = [
-                                         Line $ ", " ++ name ++ " (",
+                                         Line $ ", " ++ name ++ " as (",
                                          Indent 2 $ _generageSQLCode stmt,
                                          Line ")"
                                       ]
