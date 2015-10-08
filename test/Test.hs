@@ -135,7 +135,7 @@ test_generatorSimple = expected @=? generateSQLCode stmt
                  Line "from ancestor",
                  Line "where true",
                  Indent 2 [
-                   Line "and ancestor.me = \"yuki\""
+                   Line "and ancestor.me = 'yuki'"
                  ],
                  Line ";"
                ]
@@ -197,7 +197,7 @@ test_generatorWithClause = expected @=? generateSQLCode stmt
                  Line "from ancestor",
                  Line "where true",
                  Indent 2 [
-                   Line "and ancestor.me = \"yuki\""
+                   Line "and ancestor.me = 'yuki'"
                  ],
                  Line ";"
                ]
