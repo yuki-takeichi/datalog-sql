@@ -215,21 +215,24 @@ ruleAncestor = DatalogRule [ (baseHead, baseBody), (recHead, recBody) ]
 --        , ancestor.him as him
 --   from parent
 --      , ancestor
+--   where parent.him = ancestor.me
 -- )
 ancestorView :: CTE
 ancestorView = CTE "ancestor" $ UnionAll base rec
   where
     base = SelectStmt {
       withClauses = [],
-      selectExprs = [],
-      fromTables = [],
+      selectExprs = [ SelectExpr (ColumnRef "parent" "me") (Just "me")
+                    , SelectExpr (ColumnRef "parent" "him") (Just "him") ],
+      fromTables = [ Table "parent" Nothing ],
       whereClause = []
     }
     rec = SelectStmt {
       withClauses = [],
-      selectExprs = [],
-      fromTables = [],
-      whereClause = []
+      selectExprs = [ SelectExpr (ColumnRef "parent" "me") (Just "me")
+                    , SelectExpr (ColumnRef "ancestor" "him") (Just "him") ],
+      fromTables = [ Table "parent" Nothing, Table "ancestor" Nothing ],
+      whereClause=[ Equal (ColumnRef "parent" "him") (ColumnRef "ancestor" "me") ]
     }
 
 -- select ancestor.me as him
