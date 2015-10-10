@@ -83,14 +83,14 @@ appendToFirstLine str (Line l) = Line $ str ++ l
 appendToFirstLine str (Indent n []) = Indent n [ Line str ]
 appendToFirstLine str (Indent n (i:is)) = Indent n $ (appendToFirstLine str i):is
 
-appendToLastLine :: String -> IndentedString -> IndentedString
-appendToLastLine str (Line l) = Line $ l ++ str
-appendToLastLine str (Indent n []) = Indent n [ Line str ]
-appendToLastLine str (Indent n is) = Indent n $ (init is) ++ [appendToLastLine str (last is)]
-
-bridge :: String -> IndentedString -> IndentedString -> IndentedString
-bridge str (Line l) (Line l2) = Line $ l ++ str ++ l2
-
+bridge :: String -> [ IndentedString ] -> [ IndentedString ] -> [ IndentedString ]
+bridge str is1 (Line l2:is2) = case last is1 of
+                                 Line l     -> init is1 ++ [ Line $ l ++ str ++ l2 ] ++ is2
+                                 Indent _ _ -> is1      ++ [ Line $      str ++ l2 ] ++ is2
+bridge str is1 is2           = case last is1 of
+                                 Line l     -> init is1 ++ [ Line $ l ++ str ] ++ is2
+                                 Indent _ _ -> is1      ++ [ Line        str ] ++ is2
+                     
 
 generateSQLCode :: SelectStmt -> IndentedString
 generateSQLCode stmt = Indent 0 $ _generageSQLCode stmt ++ [Line ";"]
@@ -112,28 +112,28 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
 
     cteSQL :: [ CTE ] -> [ IndentedString ]
     cteSQL [] = []
-    cteSQL ((CTE name stmt):[]) = [
-                                     Line $ withLiteral ++ " " ++ name ++ " as (",
-                                     Indent 2 $ _generageSQLCode stmt,
-                                     Line ")"
-                                   ]
-    cteSQL ((CTE name stmt):ctes) = [
-                                      Line $ withLiteral ++ " " ++ name ++ " as (",
+    cteSQL ((CTE _name stmt):[]) = [
+                                    Line $ withLiteral ++ " " ++ _name ++ " as (",
+                                    Indent 2 $ _generageSQLCode stmt,
+                                    Line ")"
+                                  ]
+    cteSQL ((CTE _name stmt):cs) = [
+                                      Line $ withLiteral ++ " " ++ _name ++ " as (",
                                       Indent 2 $ _generageSQLCode stmt,
                                       Line ")"
-                                    ] ++ (concat (map notFirstCTE ctes))
+                                    ] ++ (concat (map notFirstCTE cs))
       where
         notFirstCTE :: CTE -> [ IndentedString ]
-        notFirstCTE (CTE name stmt) = [
-                                         Line $ ", " ++ name ++ " as (",
-                                         Indent 2 $ _generageSQLCode stmt,
+        notFirstCTE (CTE _name _stmt) = [
+                                         Line $ ", " ++ _name ++ " as (",
+                                         Indent 2 $ _generageSQLCode _stmt,
                                          Line ")"
                                       ]
 
     selectExprSQL :: [ SelectExpr ] -> [ IndentedString ]
     selectExprSQL [] = error "no column"
     selectExprSQL (s:[]) = [ appendToFirstLine "select " $ selectExpr s ]
-    selectExprSQL (s:ss) = [ appendToFirstLine "select " $ selectExpr s, Indent 5 $ map ((appendToFirstLine ", ") . selectExpr) ss ]
+    selectExprSQL (s:_ss) = [ appendToFirstLine "select " $ selectExpr s, Indent 5 $ map ((appendToFirstLine ", ") . selectExpr) _ss ]
 
     selectExpr :: SelectExpr -> IndentedString
     selectExpr (SelectExpr (ColumnRef _tableName _attrName) Nothing) = Line $ _tableName ++ "." ++ _attrName
@@ -144,7 +144,7 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
     fromSQL :: [ TableRef ] -> [ IndentedString ]
     fromSQL [] = []
     fromSQL (t:[]) = [ appendToFirstLine "from " $ tableRef t ]
-    fromSQL (t:ts) = [ appendToFirstLine "from " $ tableRef t, Indent 3 $ map (\t -> appendToFirstLine ", " $ tableRef t) ts]
+    fromSQL (t:_ts) = [ appendToFirstLine "from " $ tableRef t, Indent 3 $ map (\_t -> appendToFirstLine ", " $ tableRef _t) _ts]
 
     tableRef :: TableRef -> IndentedString
     tableRef (Table tableName (Just aliasName)) = Line $ tableName ++ " as " ++ aliasName
@@ -157,13 +157,15 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
 
     whereClauseSQL :: [ Predicate ] -> [ IndentedString ]
     whereClauseSQL [] = []
-    whereClauseSQL ps = [
-                          Line "where true",
-                          Indent 2 $ map (appendToFirstLine ("and ") . predicateSQL) ps
-                        ]
+    whereClauseSQL _ps = [
+                           Line "where true",
+                           Indent 2 $ concatMap (\x -> case predicateSQL x of
+                                                    [] -> []
+                                                    i:is -> appendToFirstLine ("and ") i:is) _ps
+                         ]
 
-    predicateSQL :: Predicate -> IndentedString
-    predicateSQL (Equal e1 e2) = bridge " = " (exprSQL e1) (exprSQL e2)
+    predicateSQL :: Predicate -> [ IndentedString ]
+    predicateSQL (Equal e1 e2) = bridge " = " [exprSQL e1] [exprSQL e2]
     predicateSQL (NotEqual _ _) = undefined
     predicateSQL (And _ _) = undefined
     predicateSQL (Or _ _) = undefined
