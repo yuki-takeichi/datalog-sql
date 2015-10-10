@@ -42,7 +42,7 @@ data Arg = Atom String
 
 -- SQL.AST
 data SelectStmt = SelectStmt { -- order by, limitいれるとしたらこと
-                    withClauses :: [CTE], -- union allのいるSelectStmtが1つでもあればRECURSIVEつける
+                    withClauses :: [CTE],
                     selectExprs :: [SelectExpr],
                     fromTables  :: [TableRef],
                     whereClause :: [Predicate] -- 連言
@@ -172,33 +172,3 @@ _generageSQLCode SelectStmt{withClauses=ctes,selectExprs=ss,fromTables=ts,whereC
     exprSQL :: Expr -> IndentedString
     exprSQL (ColumnRef _tableName _attrName) = Line $ _tableName ++ "." ++ _attrName
     exprSQL (SqlStr str)                     = Line $ "'" ++ str ++ "'" -- TOOD sanitize!!
-{-
-    predicate (NotEqual e1 e2) = binaryOperator "!=" e1 e2
-    predicate (And es) = polyadicOperator "and" "true" es
-    predicate (Or es) = polyadicOperator "or" "false" es
-    predicate (Not e1) = unaryOperator "not" e1
-
-    unaryOperator :: String -> Predicate -> IndentedString
-    unaryOperator op expr = indentWithStr (" "++op++" ") $ predicate expr
-
-    indentWithStr :: String -> IndentedString -> IndentedString
-    indentWithStr str (Block [])        = Block []
-    indentWithStr str (Block (l:ls))    = Indent 0 $ Block [str++l]:[Indent (length str) [Block ls]]
-    indentWithStr str (Indent n [])     = Indent n []
-    indentWithStr str (Indent n (i:is)) = Indent n (indentWithStr str i:is)
-
-    binaryOperator :: String -> Predicate -> Predicate -> IndentedString
-    binaryOperator op e1 e2 = case (predicate e1, predicate e2) of
-                                (Block [], Block []) -> Block []
-                                (Block l1, Block []) -> Block []
-                                (Block [], Block l2) -> Block []
-                                (Block (l1:[]), Block (l2:[])) -> Block $ [l1++" "++op++" "++l2]
-                                (Block (l1:ls1), Block (l2:ls2)) -> undefined
-                                (Indent is, Block (l2:ls2)) -> undefined
-                                (Block (l1:ls1), Indent is) -> undefined
-                                (Indent is1, Indent is2) -> undefined
-
-    -- parens are optional
-    polyadicOperator :: String -> String -> [Predicate] -> IndentedString
-    polyadicOperator op identityElement es = indentWithStr ("( "++identityElement++" "++op) $ Indent 0 $ map predicate es  -- TODO かっこの扱いを考える
--}
