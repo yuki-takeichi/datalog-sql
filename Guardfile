@@ -1,14 +1,13 @@
 guard :shell do
   watch(%r{.*\.cabal$}) do
-    `cabal build && cabal test --show-details=always --test-option=--color; date`
+    `stack build && stack test --test-arguments=--color; date`
   end
 
   watch(%r{src/.*hs}) do
-    `cabal build && cabal test --show-details=always --test-option=--color; date`
+    `stack build && stack test --test-arguments=--color; date`
   end
 
   watch(%r{test/.*hs}) do
-    `cabal build && cabal test --show-details=always --test-option=--color; date`
+    `stack build && stack test --test-arguments=--color; date`
   end
-
 end
