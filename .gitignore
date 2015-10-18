@@ -14,3 +14,7 @@ dist/
 .#*
 *~
 .*.swp
+
+# stack
+
+.stack-work
